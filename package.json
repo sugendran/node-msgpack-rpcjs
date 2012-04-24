@@ -1,0 +1,12 @@
+{
+  "name": "msgpack-rpcjs",
+  "version": "0.0.1",
+  "description": "A pure JS implementation of the msgpack rpc",
+  "keywords": ["msgpack","messagepack","rpc","serialization","serialisation","remote"],
+  "author": "Sugendran Ganess",
+  "repository": "git://github.com/sugendran/node-msgpack-rpcjs.git",
+  "main": "index.js",
+  "dependencies": {
+    "msgpack-js": "0.1.0"
+  }
+}
