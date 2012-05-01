@@ -10,8 +10,9 @@ var nextSequenceId = 1;
  * options = {
  *	port: <port to listen on>
  * }
- * 
+ *
  */
+
 function Client(options) {
 	events.EventEmitter.call(this);
 
@@ -20,14 +21,34 @@ function Client(options) {
 	this.socket = net.connect(options.port, options.host, function() {
 		self.emit("connect", self);
 	});
+	var buf = null;
 	this.socket.on("data", function(data) {
-		var messageObj = msgpack.decode(data);
-		if (messageObj[0] === 1) {
-			var msgId = messageObj[1];
-			var err = messageObj[2];
-			var result = messageObj[3];
-			if (self.requests[msgId]) {
-				self.requests[msgId](err, result);
+		if (buf) {
+			// append
+			var newBuf = new Buffer(buf.length + data.length);
+			buf.copy(newBuf, 0, 0, buf.length);
+			data.copy(newBuf, buf.length, 0, data.length);
+			buf = newBuf;
+		} else {
+			buf = data;
+		}
+
+		var messageObj;
+		// ugly but there isn't another way to know if we're received all packets
+		try {
+			messageObj = msgpack.decode(buf);
+		} catch (e) {
+			// not done
+		}
+		if (messageObj) {
+			buf = null;
+			if (messageObj[0] === 1) {
+				var msgId = messageObj[1];
+				var err = messageObj[2];
+				var result = messageObj[3];
+				if (self.requests[msgId]) {
+					self.requests[msgId](err, result);
+				}
 			}
 		}
 	});
@@ -37,7 +58,7 @@ util.inherits(Client, events.EventEmitter);
 Client.prototype.request = function() {
 	var method = arguments[0];
 	var params = [];
-	for(var i=1, ii=arguments.length-1; i<ii; i++) {
+	for (var i = 1, ii = arguments.length - 1; i < ii; i++) {
 		params.push(arguments[i]);
 	}
 	var msgId = nextSequenceId++;
@@ -50,7 +71,7 @@ Client.prototype.request = function() {
 Client.prototype.notify = function() {
 	var method = arguments[0];
 	var params = [];
-	for(var i=1, ii=arguments.length; i<ii; i++) {
+	for (var i = 1, ii = arguments.length; i < ii; i++) {
 		params.push(arguments[i]);
 	}
 	var obj = msgpack.encode([2, method, params]);
@@ -80,14 +101,13 @@ function Server(options) {
 	this.socket = net.createServer(function(connection) {
 		connection.on("data", function(data) {
 			var messageObj = msgpack.decode(data);
-			console.log(messageObj);
 			if (messageObj[0] === 0) {
 				// request
 				var msgId = messageObj[1];
 				var method = messageObj[2];
 				var params = messageObj[3];
 				params.push(function(err, result) {
-					if(err && err.constructor == Error) {
+					if (err && err.constructor == Error) {
 						err = err.message;
 					}
 					var response = [1, msgId, err, result || null];
@@ -114,7 +134,7 @@ function Server(options) {
 	});
 
 	this.socket.listen(options.port, function(e) {
-		if(e) {
+		if (e) {
 			if (e.code == 'EADDRINUSE') {
 				console.log('Address in use, retrying...');
 				return setTimeout(function() {

@@ -1,6 +1,6 @@
 {
   "name": "msgpack-rpcjs",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "description": "A pure JS implementation of the msgpack rpc",
   "keywords": ["msgpack","messagepack","rpc","serialization","serialisation","remote"],
   "author": "Sugendran Ganess",
