@@ -99,29 +99,50 @@ function Server(options) {
 
 	var self = this;
 	this.socket = net.createServer(function(connection) {
+		var buf = null;
 		connection.on("data", function(data) {
-			var messageObj = msgpack.decode(data);
-			if (messageObj[0] === 0) {
-				// request
-				var msgId = messageObj[1];
-				var method = messageObj[2];
-				var params = messageObj[3];
-				params.push(function(err, result) {
-					if (err && err.constructor == Error) {
-						err = err.message;
-					}
-					var response = [1, msgId, err, result || null];
-					var packed = msgpack.encode(response);
-					connection.write(packed);
-				});
-				params.splice(0, 0, method);
-				self.emit.apply(self, params);
-			} else if (messageObj[0] === 2) {
-				// notification
-				var method = messageObj[1];
-				var params = messageObj[2];
-				params.splice(0, 0, method);
-				self.emit.apply(self, params);
+			if (buf) {
+				// append
+				var newBuf = new Buffer(buf.length + data.length);
+				buf.copy(newBuf, 0, 0, buf.length);
+				data.copy(newBuf, buf.length, 0, data.length);
+				buf = newBuf;
+			} else {
+				buf = data;
+			}
+
+			var messageObj;
+			// ugly but there isn't another way to know if we're received all packets
+			try {
+				messageObj = msgpack.decode(buf);
+			} catch (e) {
+				// not done
+			}
+			if (messageObj) {
+				buf = null;
+
+				if (messageObj[0] === 0) {
+					// request
+					var msgId = messageObj[1];
+					var method = messageObj[2];
+					var params = messageObj[3];
+					params.push(function(err, result) {
+						if (err && err.constructor == Error) {
+							err = err.message;
+						}
+						var response = [1, msgId, err, result || null];
+						var packed = msgpack.encode(response);
+						connection.write(packed);
+					});
+					params.splice(0, 0, method);
+					self.emit.apply(self, params);
+				} else if (messageObj[0] === 2) {
+					// notification
+					var method = messageObj[1];
+					var params = messageObj[2];
+					params.splice(0, 0, method);
+					self.emit.apply(self, params);
+				}
 			}
 		});
 		connection.on('end', function() {
