@@ -86,7 +86,7 @@ Client.prototype._ping = function() {
 		var expire = setTimeout(function() {
 			self._end("timeout");
 		}, this.timeout);
-		this.request("__ping", function() {
+		this.request("_ping", function() {
 			clearTimeout(expire);
 			setTimeout(function() {
 				self._ping();
