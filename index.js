@@ -84,7 +84,7 @@ Client.prototype._ping = function() {
 	if (this.connected) {
 		var self = this;
 		var expire = setTimeout(function() {
-			self._end("timeout");
+			self._end("error", new Error("Heartbeat ping timedout"));
 		}, this.timeout);
 		this.request("_ping", function() {
 			clearTimeout(expire);
