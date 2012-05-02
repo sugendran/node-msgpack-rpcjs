@@ -17,9 +17,16 @@ function Client(options) {
 	events.EventEmitter.call(this);
 
 	this.requests = {};
+	this.connected = false;
+	this.timeout = options.timeout || 30000;
+	this.heartbeat = options.heartbeat || 60000;
 	var self = this;
 	this.socket = net.connect(options.port, options.host, function() {
+		self.connected = true;
 		self.emit("connect", self);
+		setTimeout(function() {
+			self._ping();
+		}, self.heartbeat);
 	});
 	var buf = null;
 	this.socket.on("data", function(data) {
@@ -52,8 +59,41 @@ function Client(options) {
 			}
 		}
 	});
+	this.socket.on("error", function(err) {
+		self._end("error", err);
+	});
+	this.socket.on("timeout", function() {
+		self._end("timeout");
+	});
+	this.socket.on("close", function(hadErr) {
+		if(hadErr) {
+			self._end("error", new Error("Socket closed due to transmission error"));
+		} else {
+			self._end("close");
+		}
+	});
 }
 util.inherits(Client, events.EventEmitter);
+
+Client.prototype._end = function(evtName, val) {
+	this.connected = false;
+	this.emit(evtName, val);
+};
+
+Client.prototype._ping = function() {
+	if (this.connected) {
+		var self = this;
+		var expire = setTimeout(function() {
+			self._end("timeout");
+		}, this.timeout);
+		this.request("__ping", function() {
+			clearTimeout(expire);
+			setTimeout(function() {
+				self._ping();
+			}, self.heartbeat);
+		});
+	}
+};
 
 Client.prototype.request = function() {
 	var method = arguments[0];
@@ -80,7 +120,7 @@ Client.prototype.notify = function() {
 
 exports.createClient = function(options) {
 	return new Client(options);
-}
+};
 
 
 /*
@@ -126,14 +166,19 @@ function Server(options) {
 					var msgId = messageObj[1];
 					var method = messageObj[2];
 					var params = messageObj[3];
-					params.push(function(err, result) {
-						if (err && err.constructor == Error) {
-							err = err.message;
-						}
-						var response = [1, msgId, err, result || null];
-						var packed = msgpack.encode(response);
-						connection.write(packed);
-					});
+					var respCallback = function(err, result) {
+							if (err && err.constructor == Error) {
+								err = err.message;
+							}
+							var response = [1, msgId, err, result || null];
+							var packed = msgpack.encode(response);
+							connection.write(packed);
+						};
+					// internal heartbeat
+					if (method == "_ping") {
+						return respCallback(null, "_pong");
+					}
+					params.push(respCallback);
 					params.splice(0, 0, method);
 					self.emit.apply(self, params);
 				} else if (messageObj[0] === 2) {
@@ -150,8 +195,9 @@ function Server(options) {
 		});
 	});
 
-	this.socket.on("error", function() {
-		// now what?
+	this.socket.on("error", function(err) {
+		self.socket.close();
+		self.emit("error", err);
 	});
 
 	this.socket.listen(options.port, function(e) {
@@ -168,8 +214,9 @@ function Server(options) {
 		}
 	});
 }
+
 util.inherits(Server, events.EventEmitter);
 
 exports.createServer = function(options) {
 	return new Server(options);
-}
+};
