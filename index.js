@@ -77,6 +77,12 @@ util.inherits(Client, events.EventEmitter);
 
 Client.prototype._end = function(evtName, val) {
 	this.connected = false;
+	var err = new Error("Could not complete request - connection said " + evtName);
+	for(var key in this.requests){
+		if(typeof(this.requests[key]) == "function") {
+			this.requests[key](err);
+		}
+	}
 	this.emit(evtName, val);
 };
 
