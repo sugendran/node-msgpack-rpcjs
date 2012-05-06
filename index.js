@@ -184,6 +184,9 @@ function Server(options) {
 					if (method == "_ping") {
 						return respCallback(null, "_pong");
 					}
+					if (self.listeners(method).length === 0) {
+						return respCallback(new Error("no listener for method " + method));
+					}
 					params.push(respCallback);
 					params.splice(0, 0, method);
 					self.emit.apply(self, params);
